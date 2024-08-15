@@ -2,18 +2,26 @@ import streamlit as st
 import pandas as pd
 import pickle
 
-# Load the popular books pickle file
-popular_books_path = 'C:\\Users\\pc\\Desktop\\artifacts\\top_20_books.pkl'
-with open(popular_books_path, 'rb') as file:
-    popular_books = pickle.load(file)
+# Load the pickle files
+def load_pickle(file_path):
+    try:
+        with open(file_path, 'rb') as file:
+            return pickle.load(file)
+    except Exception as e:
+        st.error(f"Error loading file {file_path}: {e}")
+        return None
 
-# Load the recommendation system pickle file
-recommendation_system_path = 'C:\\Users\\pc\\Downloads\\recommendation_system.pkl'
-with open(recommendation_system_path, 'rb') as file:
-    data = pickle.load(file)
-    model_knn = data['model_knn']
-    final_ratings_pivot = data['final_ratings_pivot']
-    books = data['books']
+# File paths
+popular_books_path = 'C:\\Users\\pc\\Desktop\\artifacts\\top_20_books.pkl'
+books_path = 'C:\\Users\\pc\\Downloads\\top_books.pkl'
+model_knn_path = 'C:\\Users\\pc\\Downloads\\model_knn.pkl'
+ratings_pivot_path = 'C:\\Users\\pc\\Downloads\\ratings_pivot.pkl'
+
+# Load data
+popular_books = load_pickle(popular_books_path)
+books = load_pickle(books_path)
+model_knn = load_pickle(model_knn_path)
+final_ratings_pivot = load_pickle(ratings_pivot_path)
 
 # Streamlit app
 st.title("Book Recommendation App")
@@ -27,39 +35,56 @@ def display_book_info(book):
 
 # Function to get recommendations
 def get_recommendations(book_title):
-    # Check if the book title exists in the books DataFrame
-    if book_title not in books['book_title'].values:
-        return None
-    
-    # Get the ISBN for the input book
-    isbn = books[books['book_title'] == book_title]['isbn'].iloc[0]
+    try:
+        # Check if the book title exists in the books dataframe
+        if book_title not in books['book_title'].values:
+            st.warning("Book title not found in the database.")
+            return pd.DataFrame()
 
-    # Check if the ISBN exists in the final_ratings_pivot DataFrame
-    if isbn not in final_ratings_pivot.index:
-        return None
+        # Get the ISBN for the input book
+        isbn = books[books['book_title'] == book_title]['isbn'].iloc[0]
 
-    # Get the index of the input book in the pivot table
-    book_index = final_ratings_pivot.index.get_loc(isbn)
+        # Check if the ISBN exists in the ratings pivot table
+        if isbn not in final_ratings_pivot.index:
+            st.warning("ISBN not found in the ratings data.")
+            return pd.DataFrame()
 
-    # Find the k nearest neighbors of the input book
-    distances, indices = model_knn.kneighbors(final_ratings_pivot.iloc[book_index, :].values.reshape(1, -1), n_neighbors=6)
+        # Get the index of the input book in the pivot table
+        book_index = final_ratings_pivot.index.get_loc(isbn)
 
-    # Get the ISBNs of the nearest neighbors
-    neighbor_isbns = [final_ratings_pivot.index[i] for i in indices.flatten()[1:]]
+        # Find the k nearest neighbors of the input book
+        distances, indices = model_knn.kneighbors(
+            final_ratings_pivot.iloc[book_index, :].values.reshape(1, -1), 
+            n_neighbors=6
+        )
 
-    # Filter books from the books dataframe
-    top_books = books[books['isbn'].isin(neighbor_isbns)]
+        # Get the ISBNs of the nearest neighbors
+        neighbor_isbns = [final_ratings_pivot.index[i] for i in indices.flatten()[1:]]
 
-    # Add a column for the distance to the input book
-    top_books['distance'] = distances.flatten()[1:]
+        # Filter books from the books dataframe
+        top_books = books[books['isbn'].isin(neighbor_isbns)]
 
-    # Dropping the images columns
-    top_books.drop(['img_s', 'img_m'], axis=1, inplace=True)
+        # Ensure that the number of neighbors is correctly handled
+        if len(neighbor_isbns) != len(top_books):
+            st.warning("Not enough similar books found.")
 
-    # Sort the books by distance in ascending order
-    top_books = top_books.sort_values('distance').head()
+            return pd.DataFrame()
 
-    return top_books
+        # Add a column for the distance to the input book
+        distances = distances.flatten()[1:]  # Exclude the first element which is the book itself
+        top_books['distance'] = distances
+
+        # Drop the images columns
+        top_books.drop(['img_s', 'img_m'], axis=1, inplace=True)
+
+        # Sort the books by distance in ascending order
+        top_books = top_books.sort_values('distance').head(5)  # Limit to 5 recommendations
+
+        return top_books
+
+    except Exception as e:
+        st.error(f"Error generating recommendations: {e}")
+        return pd.DataFrame()  # Return an empty DataFrame
 
 # Initialize session state if not already set
 if 'selected_book' not in st.session_state:
@@ -85,7 +110,7 @@ if menu == "Home":
                 if book_index < num_books:
                     book = popular_books.iloc[book_index]
                     with cols[j]:
-                        if st.button("Detail", key=f"book_{book_index}"):
+                        if st.button(f"Detail", key=f"book_{book_index}"):
                             st.session_state.selected_book = book_index
                             st.rerun()
                         st.image(book['img_l'], caption=book['book_title'], use_column_width=True)
@@ -101,26 +126,27 @@ elif menu == "Recommender":
     # Recommender Page
     st.write("### Get Book Recommendations")
     book_title = st.text_input("Enter a book title to get recommendations")
-    st.button('submit',book_title)
-    if book_title:
-        recommendations = get_recommendations(book_title)
 
-        if recommendations is None:
-            st.write("No book found with that title or no recommendations available. Please try another book title.")
-        elif not recommendations.empty:
-            st.write("### Recommended Books")
-            
-            # Display recommendations in a row
-            cols = st.columns(len(recommendations))
-            for col, (_, book) in zip(cols, recommendations.iterrows()):
-                with col:                
-                    st.image(book['img_l'], use_column_width=True)  # Display large image
-                    st.write(book['book_title'])
-                    st.write(f"**Author:** {book['book_author']}")
-                    st.write(f"**Publisher:** {book['publisher']}")
-                    st.write(f"**Year:** {book['year_of_publication']:.0f}")
-        else:
-            st.write("No recommendations found. Please try another book title.")
+    if st.button('Submit'):
+        if book_title:
+            recommendations = get_recommendations(book_title)
+
+            if recommendations.empty:
+                st.write("No book found with that title or no recommendations available. Please try another book title.")
+            else:
+                st.write("### Recommended Books")
+                num_recommendations = len(recommendations)
+
+                # Create exactly the number of columns needed
+                cols = st.columns(5)  # Create 5 columns, but only use the needed ones
+                for i in range(num_recommendations):
+                    with cols[i]:
+                        book = recommendations.iloc[i]
+                        st.image(book['img_l'], use_column_width=True)  # Display large image
+                        st.write(book['book_title'])
+                        st.write(f"**Author:** {book['book_author']}")
+                        st.write(f"**Publisher:** {book['publisher']}")
+                        st.write(f"**Year:** {book['year_of_publication']:.0f}")
 
 elif menu == "About":
     # About Page
