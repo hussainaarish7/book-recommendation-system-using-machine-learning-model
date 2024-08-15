@@ -11,11 +11,11 @@ def load_pickle(file_path):
         st.error(f"Error loading file {file_path}: {e}")
         return None
 
-# File paths (Assuming these files are in the same directory as the app)
-popular_books_path = 'top_20_books.pkl'
-books_path = 'top_books.pkl'
-model_knn_path = 'model_knn.pkl'
-ratings_pivot_path = 'ratings_pivot.pkl'
+# File paths
+popular_books_path = 'C:\\Users\\pc\\Desktop\\artifacts\\top_20_books.pkl'
+books_path = 'C:\\Users\\pc\\Downloads\\top_books.pkl'
+model_knn_path = 'C:\\Users\\pc\\Downloads\\model_knn.pkl'
+ratings_pivot_path = 'C:\\Users\\pc\\Downloads\\ratings_pivot.pkl'
 
 # Load data
 popular_books = load_pickle(popular_books_path)
@@ -67,6 +67,7 @@ def get_recommendations(book_title):
         # Ensure that the number of neighbors is correctly handled
         if len(neighbor_isbns) != len(top_books):
             st.warning("Not enough similar books found.")
+
             return pd.DataFrame()
 
         # Add a column for the distance to the input book
