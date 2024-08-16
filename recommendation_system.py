@@ -12,10 +12,10 @@ def load_pickle(file_path):
         return None
 
 # File paths
-popular_books_path = 'C:\\Users\\pc\\Desktop\\artifacts\\top_20_books.pkl'
-books_path = 'C:\\Users\\pc\\Downloads\\top_books.pkl'
-model_knn_path = 'C:\\Users\\pc\\Downloads\\model_knn.pkl'
-ratings_pivot_path = 'C:\\Users\\pc\\Downloads\\ratings_pivot.pkl'
+popular_books_path = 'top_20_books.pkl'
+books_path = 'top_books.pkl'
+model_knn_path = 'model_knn.pkl'
+ratings_pivot_path = 'ratings_pivot.pkl'
 
 # Load data
 popular_books = load_pickle(popular_books_path)
